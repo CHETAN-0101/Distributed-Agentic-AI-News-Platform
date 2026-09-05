@@ -20,28 +20,28 @@ const NAV_ITEMS = [
   {
     section: "Overview",
     items: [
-      { href: "/", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/agents", label: "Agents", icon: Bot },
-      { href: "/workflows", label: "Workflows", icon: Workflow },
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/dashboard/agents", label: "Agents", icon: Bot },
+      { href: "/dashboard/workflows", label: "Workflows", icon: Workflow },
     ],
   },
   {
     section: "NewsFlow AI",
     items: [
-      { href: "/newsflow", label: "News Intelligence", icon: Newspaper },
+      { href: "/dashboard/newsflow", label: "News Intelligence", icon: Newspaper },
     ],
   },
   {
     section: "Intelligence",
     items: [
-      { href: "/memory", label: "Memory", icon: Brain },
-      { href: "/approvals", label: "Approvals", icon: ShieldCheck },
+      { href: "/dashboard/memory", label: "Memory", icon: Brain },
+      { href: "/dashboard/approvals", label: "Approvals", icon: ShieldCheck },
     ],
   },
   {
     section: "Observability",
     items: [
-      { href: "/metrics", label: "Metrics", icon: Activity },
+      { href: "/dashboard/metrics", label: "Metrics", icon: Activity },
     ],
   },
 ];
@@ -79,8 +79,8 @@ export function Sidebar() {
               {section.items.map((item) => {
                 const Icon = item.icon;
                 const isActive =
-                  item.href === "/"
-                    ? pathname === "/"
+                  item.href === "/dashboard"
+                    ? pathname === "/dashboard"
                     : pathname.startsWith(item.href);
                 return (
                   <Link

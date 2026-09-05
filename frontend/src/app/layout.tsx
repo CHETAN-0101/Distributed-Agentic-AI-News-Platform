@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Sidebar } from "@/components/layout/Sidebar";
 import { QueryProvider } from "@/components/providers/QueryProvider";
+
 
 export const metadata: Metadata = {
   title: "AgentOS — Distributed Agentic AI Platform",
@@ -32,12 +32,7 @@ export default function RootLayout({
       </head>
       <body>
         <QueryProvider>
-          <div className="flex min-h-screen">
-            <Sidebar />
-            <main className="flex-1 min-w-0 overflow-auto">
-              {children}
-            </main>
-          </div>
+          {children}
         </QueryProvider>
       </body>
     </html>
