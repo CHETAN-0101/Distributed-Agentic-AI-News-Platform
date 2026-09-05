@@ -1,0 +1,65 @@
+groups:
+  - name: agentos.agents
+    rules:
+      - alert: AgentDown
+        expr: up{job="agents"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Agent {{ $labels.instance }} is down"
+          description: "Agent {{ $labels.instance }} has been unreachable for > 1 minute."
+
+      - alert: AgentHighErrorRate
+        expr: rate(agentos_task_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on agent {{ $labels.agent_id }}"
+          description: "Error rate exceeds 10% over 5 minutes."
+
+      - alert: AgentHighLatency
+        expr: agentos_task_duration_seconds{quantile="0.95"} > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High latency on agent {{ $labels.agent_id }}"
+
+  - name: agentos.queues
+    rules:
+      - alert: DLQMessageAccumulation
+        expr: rabbitmq_queue_messages{queue="agentos.dlq"} > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DLQ has {{ $value }} messages"
+          description: "Dead Letter Queue accumulating messages — investigate failures."
+
+      - alert: RabbitMQDown
+        expr: up{job="rabbitmq"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "RabbitMQ is unreachable"
+
+  - name: agentos.services
+    rules:
+      - alert: ServiceDown
+        expr: up{job=~"api-gateway|agent-registry|orchestrator|workflow-service"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Core service {{ $labels.job }} is down"
+
+      - alert: HighApprovalQueueDepth
+        expr: agentos_pending_approvals > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} approval requests pending for > 10 minutes"

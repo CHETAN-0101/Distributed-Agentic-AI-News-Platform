@@ -1,0 +1,25 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY shared/ ./shared/
+COPY agents/base/ ./agents/base/
+COPY requirements-base.txt .
+COPY requirements-agents.txt .
+
+RUN pip install --no-cache-dir -r requirements-base.txt -r requirements-agents.txt
+
+COPY . .
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:${AGENT_PORT:-9000}/health || exit 1
+
+RUN adduser --disabled-password --gecos '' appuser
+USER appuser
+
+CMD ["python", "agent.py"]

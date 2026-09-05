@@ -1,0 +1,101 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'agentos'
+
+rule_files:
+  - "alert_rules.yml"
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:8000']
+    metrics_path: /metrics
+
+  - job_name: 'agent-registry'
+    static_configs:
+      - targets: ['agent-registry:8001']
+    metrics_path: /metrics
+
+  - job_name: 'orchestrator'
+    static_configs:
+      - targets: ['orchestrator:8002']
+    metrics_path: /metrics
+
+  - job_name: 'workflow-service'
+    static_configs:
+      - targets: ['workflow-service:8003']
+    metrics_path: /metrics
+
+  - job_name: 'memory-service'
+    static_configs:
+      - targets: ['memory-service:8004']
+    metrics_path: /metrics
+
+  - job_name: 'evidence-service'
+    static_configs:
+      - targets: ['evidence-service:8005']
+    metrics_path: /metrics
+
+  - job_name: 'verification-service'
+    static_configs:
+      - targets: ['verification-service:8006']
+    metrics_path: /metrics
+
+  - job_name: 'policy-service'
+    static_configs:
+      - targets: ['policy-service:8007']
+    metrics_path: /metrics
+
+  - job_name: 'approval-service'
+    static_configs:
+      - targets: ['approval-service:8008']
+    metrics_path: /metrics
+
+  - job_name: 'evaluation-service'
+    static_configs:
+      - targets: ['evaluation-service:8009']
+    metrics_path: /metrics
+
+  # Agents
+  - job_name: 'agents'
+    static_configs:
+      - targets:
+          - 'research-agent:9001'
+          - 'news-ingestion-agent:9002'
+          - 'news-clustering-agent:9003'
+          - 'news-claim-agent:9004'
+          - 'news-verification-agent:9005'
+          - 'news-context-agent:9006'
+          - 'news-summary-agent:9007'
+          - 'document-agent:9008'
+          - 'data-agent:9009'
+          - 'verification-agent:9010'
+          - 'report-agent:9011'
+          - 'security-agent:9012'
+          - 'finance-agent:9013'
+          - 'education-agent:9014'
+          - 'civic-agent:9015'
+          - 'communication-agent:9016'
+          - 'coding-agent:9017'
+    metrics_path: /metrics
+
+  # RabbitMQ (via plugin)
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['rabbitmq:15692']
+
+  # PostgreSQL (via postgres_exporter if desired — optional)
+  # - job_name: 'postgres'
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
+
+  # Redis (via redis_exporter — optional)
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']

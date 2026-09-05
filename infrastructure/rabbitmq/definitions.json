@@ -1,0 +1,339 @@
+{
+  "rabbit_version": "3.13.0",
+  "rabbitmq_version": "3.13.0",
+  "product_name": "RabbitMQ",
+  "users": [
+    {
+      "name": "agentos",
+      "password_hash": "placeholder-will-be-overridden-by-env",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": ["administrator"],
+      "limits": {}
+    }
+  ],
+  "vhosts": [
+    { "name": "/" }
+  ],
+  "permissions": [
+    {
+      "user": "agentos",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "agentos.tasks",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "agentos.agents",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "agentos.workflows",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "agentos.news",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "agentos.evidence",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "agentos.human",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "agentos.dlx",
+      "vhost": "/",
+      "type": "fanout",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "agentos.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "tasks.created",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "agentos.dlx",
+        "x-message-ttl": 86400000,
+        "x-max-priority": 10
+      }
+    },
+    {
+      "name": "tasks.completed",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "agentos.dlx",
+        "x-message-ttl": 86400000
+      }
+    },
+    {
+      "name": "tasks.failed",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "agentos.dlx",
+        "x-message-ttl": 86400000
+      }
+    },
+    {
+      "name": "agent.heartbeat",
+      "vhost": "/",
+      "durable": false,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 60000
+      }
+    },
+    {
+      "name": "news.article.ingested",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "agentos.dlx",
+        "x-message-ttl": 86400000
+      }
+    },
+    {
+      "name": "news.event.updated",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "agentos.dlx",
+        "x-message-ttl": 86400000
+      }
+    },
+    {
+      "name": "news.claim.extracted",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "agentos.dlx",
+        "x-message-ttl": 86400000
+      }
+    },
+    {
+      "name": "news.verification.requested",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "agentos.dlx",
+        "x-message-ttl": 86400000
+      }
+    },
+    {
+      "name": "news.verification.completed",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "agentos.dlx",
+        "x-message-ttl": 86400000
+      }
+    },
+    {
+      "name": "evidence.created",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "agentos.dlx",
+        "x-message-ttl": 86400000
+      }
+    },
+    {
+      "name": "human.review_required",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "agentos.dlx",
+        "x-message-ttl": 3600000
+      }
+    },
+    {
+      "name": "workflow.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "agentos.dlx",
+        "x-message-ttl": 86400000
+      }
+    }
+  ],
+  "bindings": [
+    {
+      "source": "agentos.dlx",
+      "vhost": "/",
+      "destination": "agentos.dlq",
+      "destination_type": "queue",
+      "routing_key": "#",
+      "arguments": {}
+    },
+    {
+      "source": "agentos.tasks",
+      "vhost": "/",
+      "destination": "tasks.created",
+      "destination_type": "queue",
+      "routing_key": "task.created",
+      "arguments": {}
+    },
+    {
+      "source": "agentos.tasks",
+      "vhost": "/",
+      "destination": "tasks.completed",
+      "destination_type": "queue",
+      "routing_key": "task.completed",
+      "arguments": {}
+    },
+    {
+      "source": "agentos.tasks",
+      "vhost": "/",
+      "destination": "tasks.failed",
+      "destination_type": "queue",
+      "routing_key": "task.failed",
+      "arguments": {}
+    },
+    {
+      "source": "agentos.agents",
+      "vhost": "/",
+      "destination": "agent.heartbeat",
+      "destination_type": "queue",
+      "routing_key": "agent.heartbeat",
+      "arguments": {}
+    },
+    {
+      "source": "agentos.news",
+      "vhost": "/",
+      "destination": "news.article.ingested",
+      "destination_type": "queue",
+      "routing_key": "news.article.ingested",
+      "arguments": {}
+    },
+    {
+      "source": "agentos.news",
+      "vhost": "/",
+      "destination": "news.event.updated",
+      "destination_type": "queue",
+      "routing_key": "news.event.updated",
+      "arguments": {}
+    },
+    {
+      "source": "agentos.news",
+      "vhost": "/",
+      "destination": "news.claim.extracted",
+      "destination_type": "queue",
+      "routing_key": "news.claim.extracted",
+      "arguments": {}
+    },
+    {
+      "source": "agentos.news",
+      "vhost": "/",
+      "destination": "news.verification.requested",
+      "destination_type": "queue",
+      "routing_key": "news.verification.requested",
+      "arguments": {}
+    },
+    {
+      "source": "agentos.news",
+      "vhost": "/",
+      "destination": "news.verification.completed",
+      "destination_type": "queue",
+      "routing_key": "news.verification.completed",
+      "arguments": {}
+    },
+    {
+      "source": "agentos.evidence",
+      "vhost": "/",
+      "destination": "evidence.created",
+      "destination_type": "queue",
+      "routing_key": "evidence.created",
+      "arguments": {}
+    },
+    {
+      "source": "agentos.human",
+      "vhost": "/",
+      "destination": "human.review_required",
+      "destination_type": "queue",
+      "routing_key": "human.review_required",
+      "arguments": {}
+    },
+    {
+      "source": "agentos.workflows",
+      "vhost": "/",
+      "destination": "workflow.events",
+      "destination_type": "queue",
+      "routing_key": "#",
+      "arguments": {}
+    }
+  ],
+  "policies": [
+    {
+      "vhost": "/",
+      "name": "ha-all",
+      "pattern": ".*",
+      "apply-to": "queues",
+      "definition": {
+        "ha-mode": "all",
+        "ha-sync-mode": "automatic"
+      },
+      "priority": 0
+    }
+  ]
+}

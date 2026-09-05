@@ -1,0 +1,690 @@
+version: "3.9"
+
+# =============================================================================
+# AgentOS — Docker Compose
+# Infrastructure services + all microservices + agents
+# =============================================================================
+
+x-common-env: &common-env
+  ENVIRONMENT: ${ENVIRONMENT:-development}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  DATABASE_URL: postgresql+asyncpg://agentos:agentos_dev_password@postgres:5432/agentos
+  REDIS_URL: redis://redis:6379/0
+  RABBITMQ_URL: amqp://agentos:agentos_dev_password@rabbitmq:5672/
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+  LLM_PROVIDER: ${LLM_PROVIDER:-mistral}
+  MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+  MISTRAL_MODEL: ${MISTRAL_MODEL:-mistral-large-latest}
+  MISTRAL_BASE_URL: ${MISTRAL_BASE_URL:-https://api.mistral.ai/v1}
+  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-mistral}
+  EMBEDDING_MODEL: ${EMBEDDING_MODEL:-mistral-embed}
+  EMBEDDING_DIM: ${EMBEDDING_DIM:-1024}
+  JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+  JWT_ALGORITHM: HS256
+  TENANT_DEFAULT: ${TENANT_DEFAULT:-default}
+
+x-service-base: &service-base
+  restart: unless-stopped
+  networks:
+    - agentos-net
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+volumes:
+  postgres-data:
+  redis-data:
+  rabbitmq-data:
+  prometheus-data:
+  grafana-data:
+  jaeger-data:
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  agentos-net:
+    driver: bridge
+
+# =============================================================================
+# SERVICES
+# =============================================================================
+services:
+
+  # ---------------------------------------------------------------------------
+  # INFRASTRUCTURE
+  # ---------------------------------------------------------------------------
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    <<: *service-base
+    environment:
+      POSTGRES_DB: agentos
+      POSTGRES_USER: agentos
+      POSTGRES_PASSWORD: agentos_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentos -d agentos"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    <<: *service-base
+    command: >
+      redis-server
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1
+      --loglevel warning
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    <<: *service-base
+    environment:
+      RABBITMQ_DEFAULT_USER: agentos
+      RABBITMQ_DEFAULT_PASS: agentos_dev_password
+      RABBITMQ_DEFAULT_VHOST: /
+    ports:
+      - "5672:5672"
+      - "15672:15672"     # Management UI
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+      - ./infrastructure/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+      - ./infrastructure/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    <<: *service-base
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      SPAN_STORAGE_TYPE: badger
+      BADGER_EPHEMERAL: "false"
+      BADGER_DIRECTORY_VALUE: /badger/data
+      BADGER_DIRECTORY_KEY: /badger/key
+    ports:
+      - "16686:16686"     # Jaeger UI
+      - "4317:4317"       # OTLP gRPC
+      - "4318:4318"       # OTLP HTTP
+      - "6831:6831/udp"   # Jaeger agent
+    volumes:
+      - jaeger-data:/badger
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:14269/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    <<: *service-base
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infrastructure/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    <<: *service-base
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: agentos_admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/system-overview.json
+    ports:
+      - "3001:3000"       # 3001 to avoid conflict with Next.js on 3000
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # CORE PLATFORM SERVICES
+  # ---------------------------------------------------------------------------
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: ../../infrastructure/docker/Dockerfile.service
+    <<: *service-base
+    environment:
+      <<: *common-env
+      SERVICE_NAME: api-gateway
+      SERVICE_PORT: "8000"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+      ORCHESTRATOR_URL: http://orchestrator:8002
+      WORKFLOW_SERVICE_URL: http://workflow-service:8003
+      MEMORY_SERVICE_URL: http://memory-service:8004
+      APPROVAL_SERVICE_URL: http://approval-service:8008
+      CORS_ORIGINS: "http://localhost:3000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  agent-registry:
+    build:
+      context: ./services/agent-registry
+      dockerfile: ../../infrastructure/docker/Dockerfile.service
+    <<: *service-base
+    environment:
+      <<: *common-env
+      SERVICE_NAME: agent-registry
+      SERVICE_PORT: "8001"
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  orchestrator:
+    build:
+      context: ./services/orchestrator
+      dockerfile: ../../infrastructure/docker/Dockerfile.service
+    <<: *service-base
+    environment:
+      <<: *common-env
+      SERVICE_NAME: orchestrator
+      SERVICE_PORT: "8002"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+      WORKFLOW_SERVICE_URL: http://workflow-service:8003
+      POLICY_SERVICE_URL: http://policy-service:8007
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      agent-registry:
+        condition: service_healthy
+
+  workflow-service:
+    build:
+      context: ./services/workflow-service
+      dockerfile: ../../infrastructure/docker/Dockerfile.service
+    <<: *service-base
+    environment:
+      <<: *common-env
+      SERVICE_NAME: workflow-service
+      SERVICE_PORT: "8003"
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  memory-service:
+    build:
+      context: ./services/memory-service
+      dockerfile: ../../infrastructure/docker/Dockerfile.service
+    <<: *service-base
+    environment:
+      <<: *common-env
+      SERVICE_NAME: memory-service
+      SERVICE_PORT: "8004"
+    ports:
+      - "8004:8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  evidence-service:
+    build:
+      context: ./services/evidence-service
+      dockerfile: ../../infrastructure/docker/Dockerfile.service
+    <<: *service-base
+    environment:
+      <<: *common-env
+      SERVICE_NAME: evidence-service
+      SERVICE_PORT: "8005"
+    ports:
+      - "8005:8005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  verification-service:
+    build:
+      context: ./services/verification-service
+      dockerfile: ../../infrastructure/docker/Dockerfile.service
+    <<: *service-base
+    environment:
+      <<: *common-env
+      SERVICE_NAME: verification-service
+      SERVICE_PORT: "8006"
+      EVIDENCE_SERVICE_URL: http://evidence-service:8005
+    ports:
+      - "8006:8006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  policy-service:
+    build:
+      context: ./services/policy-service
+      dockerfile: ../../infrastructure/docker/Dockerfile.service
+    <<: *service-base
+    environment:
+      <<: *common-env
+      SERVICE_NAME: policy-service
+      SERVICE_PORT: "8007"
+    ports:
+      - "8007:8007"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  approval-service:
+    build:
+      context: ./services/approval-service
+      dockerfile: ../../infrastructure/docker/Dockerfile.service
+    <<: *service-base
+    environment:
+      <<: *common-env
+      SERVICE_NAME: approval-service
+      SERVICE_PORT: "8008"
+      POLICY_SERVICE_URL: http://policy-service:8007
+      NOTIFICATION_SERVICE_URL: http://notification-service:8010
+    ports:
+      - "8008:8008"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  evaluation-service:
+    build:
+      context: ./services/evaluation-service
+      dockerfile: ../../infrastructure/docker/Dockerfile.service
+    <<: *service-base
+    environment:
+      <<: *common-env
+      SERVICE_NAME: evaluation-service
+      SERVICE_PORT: "8009"
+    ports:
+      - "8009:8009"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: ../../infrastructure/docker/Dockerfile.service
+    <<: *service-base
+    environment:
+      <<: *common-env
+      SERVICE_NAME: notification-service
+      SERVICE_PORT: "8010"
+    ports:
+      - "8010:8010"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # AGENTS
+  # ---------------------------------------------------------------------------
+
+  research-agent:
+    build:
+      context: ./agents/research-agent
+      dockerfile: ../../infrastructure/docker/Dockerfile.agent
+    <<: *service-base
+    environment:
+      <<: *common-env
+      AGENT_ID: research-agent
+      AGENT_PORT: "9001"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+    ports:
+      - "9001:9001"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      agent-registry:
+        condition: service_healthy
+
+  news-ingestion-agent:
+    build:
+      context: ./agents/news-ingestion-agent
+      dockerfile: ../../infrastructure/docker/Dockerfile.agent
+    <<: *service-base
+    environment:
+      <<: *common-env
+      AGENT_ID: news-ingestion-agent
+      AGENT_PORT: "9002"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+      NEWS_INGESTION_INTERVAL_SECONDS: ${NEWS_INGESTION_INTERVAL_SECONDS:-300}
+    ports:
+      - "9002:9002"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      agent-registry:
+        condition: service_healthy
+
+  news-clustering-agent:
+    build:
+      context: ./agents/news-clustering-agent
+      dockerfile: ../../infrastructure/docker/Dockerfile.agent
+    <<: *service-base
+    environment:
+      <<: *common-env
+      AGENT_ID: news-clustering-agent
+      AGENT_PORT: "9003"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+    ports:
+      - "9003:9003"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      agent-registry:
+        condition: service_healthy
+
+  news-claim-agent:
+    build:
+      context: ./agents/news-claim-agent
+      dockerfile: ../../infrastructure/docker/Dockerfile.agent
+    <<: *service-base
+    environment:
+      <<: *common-env
+      AGENT_ID: news-claim-agent
+      AGENT_PORT: "9004"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+    ports:
+      - "9004:9004"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      agent-registry:
+        condition: service_healthy
+
+  news-verification-agent:
+    build:
+      context: ./agents/news-verification-agent
+      dockerfile: ../../infrastructure/docker/Dockerfile.agent
+    <<: *service-base
+    environment:
+      <<: *common-env
+      AGENT_ID: news-verification-agent
+      AGENT_PORT: "9005"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+    ports:
+      - "9005:9005"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      agent-registry:
+        condition: service_healthy
+
+  news-context-agent:
+    build:
+      context: ./agents/news-context-agent
+      dockerfile: ../../infrastructure/docker/Dockerfile.agent
+    <<: *service-base
+    environment:
+      <<: *common-env
+      AGENT_ID: news-context-agent
+      AGENT_PORT: "9006"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+    ports:
+      - "9006:9006"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  news-summary-agent:
+    build:
+      context: ./agents/news-summary-agent
+      dockerfile: ../../infrastructure/docker/Dockerfile.agent
+    <<: *service-base
+    environment:
+      <<: *common-env
+      AGENT_ID: news-summary-agent
+      AGENT_PORT: "9007"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+    ports:
+      - "9007:9007"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  document-agent:
+    build:
+      context: ./agents/document-agent
+      dockerfile: ../../infrastructure/docker/Dockerfile.agent
+    <<: *service-base
+    environment:
+      <<: *common-env
+      AGENT_ID: document-agent
+      AGENT_PORT: "9008"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+    ports:
+      - "9008:9008"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  data-agent:
+    build:
+      context: ./agents/data-agent
+      dockerfile: ../../infrastructure/docker/Dockerfile.agent
+    <<: *service-base
+    environment:
+      <<: *common-env
+      AGENT_ID: data-agent
+      AGENT_PORT: "9009"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+    ports:
+      - "9009:9009"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  verification-agent:
+    build:
+      context: ./agents/verification-agent
+      dockerfile: ../../infrastructure/docker/Dockerfile.agent
+    <<: *service-base
+    environment:
+      <<: *common-env
+      AGENT_ID: verification-agent
+      AGENT_PORT: "9010"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+    ports:
+      - "9010:9010"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  report-agent:
+    build:
+      context: ./agents/report-agent
+      dockerfile: ../../infrastructure/docker/Dockerfile.agent
+    <<: *service-base
+    environment:
+      <<: *common-env
+      AGENT_ID: report-agent
+      AGENT_PORT: "9011"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+    ports:
+      - "9011:9011"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  security-agent:
+    build:
+      context: ./agents/security-agent
+      dockerfile: ../../infrastructure/docker/Dockerfile.agent
+    <<: *service-base
+    environment:
+      <<: *common-env
+      AGENT_ID: security-agent
+      AGENT_PORT: "9012"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+    ports:
+      - "9012:9012"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  finance-agent:
+    build:
+      context: ./agents/finance-agent
+      dockerfile: ../../infrastructure/docker/Dockerfile.agent
+    <<: *service-base
+    environment:
+      <<: *common-env
+      AGENT_ID: finance-agent
+      AGENT_PORT: "9013"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+    ports:
+      - "9013:9013"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  education-agent:
+    build:
+      context: ./agents/education-agent
+      dockerfile: ../../infrastructure/docker/Dockerfile.agent
+    <<: *service-base
+    environment:
+      <<: *common-env
+      AGENT_ID: education-agent
+      AGENT_PORT: "9014"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+    ports:
+      - "9014:9014"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  civic-agent:
+    build:
+      context: ./agents/civic-agent
+      dockerfile: ../../infrastructure/docker/Dockerfile.agent
+    <<: *service-base
+    environment:
+      <<: *common-env
+      AGENT_ID: civic-agent
+      AGENT_PORT: "9015"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+    ports:
+      - "9015:9015"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  communication-agent:
+    build:
+      context: ./agents/communication-agent
+      dockerfile: ../../infrastructure/docker/Dockerfile.agent
+    <<: *service-base
+    environment:
+      <<: *common-env
+      AGENT_ID: communication-agent
+      AGENT_PORT: "9016"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+    ports:
+      - "9016:9016"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  coding-agent:
+    build:
+      context: ./agents/coding-agent
+      dockerfile: ../../infrastructure/docker/Dockerfile.agent
+    <<: *service-base
+    environment:
+      <<: *common-env
+      AGENT_ID: coding-agent
+      AGENT_PORT: "9017"
+      AGENT_REGISTRY_URL: http://agent-registry:8001
+    ports:
+      - "9017:9017"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
