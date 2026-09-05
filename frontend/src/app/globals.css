@@ -1,0 +1,412 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   DESIGN TOKENS — AgentOS Design System
+   ============================================================ */
+:root {
+  /* Brand */
+  --brand-primary:    220 100% 60%;   /* Electric blue */
+  --brand-secondary:  270 80%  60%;   /* Deep violet */
+  --brand-accent:     160 80%  50%;   /* Emerald green */
+  --brand-warning:     35 95%  55%;   /* Amber */
+  --brand-danger:       0 80%  60%;   /* Red */
+
+  /* Surfaces */
+  --surface-0:   220 20% 6%;   /* Base background */
+  --surface-1:   220 18% 9%;   /* Cards */
+  --surface-2:   220 16% 13%;  /* Elevated cards */
+  --surface-3:   220 14% 17%;  /* Modals / sidebars */
+  --surface-4:   220 12% 22%;  /* Hover states */
+
+  /* Text */
+  --text-primary:   220 15% 95%;
+  --text-secondary: 220 10% 65%;
+  --text-muted:     220  8% 40%;
+  --text-disabled:  220  6% 28%;
+
+  /* Borders */
+  --border-subtle:  220 15% 18%;
+  --border-medium:  220 15% 25%;
+  --border-strong:  220 15% 35%;
+
+  /* Status colors */
+  --status-healthy:    142 70% 45%;
+  --status-degraded:    35 90% 55%;
+  --status-unhealthy:    0 75% 55%;
+  --status-pending:    220 70% 60%;
+  --status-running:    200 80% 55%;
+  --status-completed:  142 70% 45%;
+  --status-failed:       0 75% 55%;
+
+  /* Shadows */
+  --shadow-sm:    0 1px  3px rgba(0,0,0,.4);
+  --shadow-md:    0 4px 12px rgba(0,0,0,.5);
+  --shadow-lg:    0 8px 30px rgba(0,0,0,.6);
+  --shadow-glow:  0 0 30px hsl(var(--brand-primary) / 0.3);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+* { box-sizing: border-box; }
+
+html {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-feature-settings: "cv02","cv03","cv04","cv11";
+}
+
+body {
+  background: hsl(var(--surface-0));
+  color: hsl(var(--text-primary));
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: hsl(var(--brand-primary) / 0.3);
+  color: hsl(var(--text-primary));
+}
+
+/* Scrollbar */
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: hsl(var(--border-medium)); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--border-strong)); }
+
+/* ============================================================
+   GLASS MORPHISM
+   ============================================================ */
+.glass {
+  background: hsl(var(--surface-1) / 0.85);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid hsl(var(--border-subtle));
+}
+
+.glass-heavy {
+  background: hsl(var(--surface-2) / 0.95);
+  backdrop-filter: blur(24px) saturate(200%);
+  border: 1px solid hsl(var(--border-medium));
+}
+
+/* ============================================================
+   CARDS
+   ============================================================ */
+.card {
+  background: hsl(var(--surface-1));
+  border: 1px solid hsl(var(--border-subtle));
+  border-radius: 12px;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+
+.card:hover {
+  border-color: hsl(var(--border-medium));
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.card-glow {
+  box-shadow: var(--shadow-glow);
+  border-color: hsl(var(--brand-primary) / 0.4);
+}
+
+/* ============================================================
+   BADGES & STATUS
+   ============================================================ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.badge-healthy,
+.badge-completed   { background: hsl(142 70% 45% / 0.15); color: hsl(142 70% 60%); border: 1px solid hsl(142 70% 45% / 0.3); }
+.badge-degraded,
+.badge-warning     { background: hsl( 35 90% 55% / 0.15); color: hsl( 35 90% 70%); border: 1px solid hsl( 35 90% 55% / 0.3); }
+.badge-unhealthy,
+.badge-failed      { background: hsl(  0 75% 55% / 0.15); color: hsl(  0 75% 70%); border: 1px solid hsl(  0 75% 55% / 0.3); }
+.badge-running,
+.badge-pending     { background: hsl(200 80% 55% / 0.15); color: hsl(200 80% 70%); border: 1px solid hsl(200 80% 55% / 0.3); }
+.badge-offline     { background: hsl(220  8% 40% / 0.15); color: hsl(220  8% 55%); border: 1px solid hsl(220  8% 40% / 0.3); }
+.badge-confirmed   { background: hsl(142 70% 45% / 0.15); color: hsl(142 70% 60%); border: 1px solid hsl(142 70% 45% / 0.3); }
+.badge-conflicting { background: hsl( 35 90% 55% / 0.15); color: hsl( 35 90% 70%); border: 1px solid hsl( 35 90% 55% / 0.3); }
+.badge-unverified  { background: hsl(220 70% 60% / 0.15); color: hsl(220 70% 75%); border: 1px solid hsl(220 70% 60% / 0.3); }
+
+/* ============================================================
+   PULSE ANIMATION (live indicator)
+   ============================================================ */
+.pulse-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.pulse-dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  animation: pulse-ring 2s ease-out infinite;
+}
+
+.pulse-dot.healthy  { background: hsl(var(--status-healthy)); }
+.pulse-dot.healthy::after { border: 2px solid hsl(var(--status-healthy)); }
+.pulse-dot.unhealthy { background: hsl(var(--status-unhealthy)); }
+.pulse-dot.unhealthy::after { border: 2px solid hsl(var(--status-unhealthy)); }
+.pulse-dot.running  { background: hsl(var(--status-running)); }
+.pulse-dot.running::after  { border: 2px solid hsl(var(--status-running)); }
+
+@keyframes pulse-ring {
+  0%   { transform: scale(0.8); opacity: 0.8; }
+  80%  { transform: scale(2.2); opacity: 0; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* ============================================================
+   GRADIENTS
+   ============================================================ */
+.gradient-brand {
+  background: linear-gradient(135deg, hsl(var(--brand-primary)), hsl(var(--brand-secondary)));
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, hsl(var(--brand-primary)), hsl(var(--brand-secondary)));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-glow {
+  position: relative;
+}
+.gradient-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, hsl(var(--brand-primary) / 0.15), hsl(var(--brand-secondary) / 0.15));
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* ============================================================
+   CONFIDENCE BAR
+   ============================================================ */
+.confidence-bar {
+  height: 4px;
+  border-radius: 9999px;
+  background: hsl(var(--surface-3));
+  overflow: hidden;
+}
+
+.confidence-bar-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================================
+   EVIDENCE SECTIONS
+   ============================================================ */
+.evidence-section {
+  border-left: 3px solid;
+  padding-left: 12px;
+  margin-bottom: 12px;
+}
+
+.evidence-confirmed  { border-color: hsl(var(--status-healthy)); }
+.evidence-conflicting { border-color: hsl(var(--status-degraded)); }
+.evidence-unknown    { border-color: hsl(var(--status-pending)); }
+.evidence-unverified { border-color: hsl(var(--text-muted)); }
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+  outline: none;
+}
+
+.btn:focus-visible { outline: 2px solid hsl(var(--brand-primary)); outline-offset: 2px; }
+
+.btn-primary {
+  background: linear-gradient(135deg, hsl(var(--brand-primary)), hsl(var(--brand-secondary)));
+  color: white;
+  box-shadow: 0 2px 8px hsl(var(--brand-primary) / 0.3);
+}
+.btn-primary:hover { opacity: 0.9; box-shadow: 0 4px 16px hsl(var(--brand-primary) / 0.4); transform: translateY(-1px); }
+
+.btn-ghost {
+  background: transparent;
+  color: hsl(var(--text-secondary));
+  border-color: hsl(var(--border-subtle));
+}
+.btn-ghost:hover {
+  background: hsl(var(--surface-2));
+  color: hsl(var(--text-primary));
+  border-color: hsl(var(--border-medium));
+}
+
+.btn-danger {
+  background: hsl(0 75% 55% / 0.15);
+  color: hsl(0 75% 70%);
+  border-color: hsl(0 75% 55% / 0.3);
+}
+.btn-danger:hover { background: hsl(0 75% 55% / 0.25); }
+
+/* ============================================================
+   INPUTS
+   ============================================================ */
+.input {
+  width: 100%;
+  padding: 10px 14px;
+  background: hsl(var(--surface-2));
+  border: 1px solid hsl(var(--border-subtle));
+  border-radius: 8px;
+  color: hsl(var(--text-primary));
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.input::placeholder { color: hsl(var(--text-muted)); }
+.input:focus {
+  border-color: hsl(var(--brand-primary) / 0.6);
+  box-shadow: 0 0 0 3px hsl(var(--brand-primary) / 0.1);
+}
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+.fade-in { animation: fadeIn 0.3s ease forwards; }
+.slide-up { animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.scale-in { animation: scaleIn 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+@keyframes fadeIn  { from { opacity: 0; }               to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes scaleIn { from { opacity: 0; transform: scale(0.95); }      to { opacity: 1; transform: none; } }
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--surface-2)) 0%,
+    hsl(var(--surface-3)) 50%,
+    hsl(var(--surface-2)) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+/* ============================================================
+   SIDEBAR
+   ============================================================ */
+.sidebar {
+  width: 240px;
+  min-height: 100vh;
+  background: hsl(var(--surface-1));
+  border-right: 1px solid hsl(var(--border-subtle));
+  flex-shrink: 0;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  color: hsl(var(--text-secondary));
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+  text-decoration: none;
+}
+
+.sidebar-item:hover {
+  background: hsl(var(--surface-2));
+  color: hsl(var(--text-primary));
+}
+
+.sidebar-item.active {
+  background: hsl(var(--brand-primary) / 0.12);
+  color: hsl(var(--brand-primary));
+  border-color: hsl(var(--brand-primary) / 0.25);
+}
+
+/* ============================================================
+   MONOSPACE (code, IDs)
+   ============================================================ */
+.mono {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 0.85em;
+}
+
+/* ============================================================
+   WORKFLOW DAG
+   ============================================================ */
+.dag-node {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border-medium));
+  background: hsl(var(--surface-2));
+  font-size: 13px;
+  font-weight: 500;
+  cursor: default;
+  transition: all 0.15s;
+}
+
+.dag-node.completed { border-color: hsl(var(--status-healthy) / 0.5); background: hsl(142 70% 45% / 0.08); }
+.dag-node.running   { border-color: hsl(var(--status-running) / 0.5);  background: hsl(200 80% 55% / 0.08); animation: nodeGlow 1.5s ease-in-out infinite; }
+.dag-node.failed    { border-color: hsl(var(--status-unhealthy) / 0.5); background: hsl(0 75% 55% / 0.08); }
+.dag-node.pending   { opacity: 0.6; }
+
+@keyframes nodeGlow {
+  0%, 100% { box-shadow: 0 0 8px hsl(200 80% 55% / 0.3); }
+  50%       { box-shadow: 0 0 20px hsl(200 80% 55% / 0.6); }
+}
+
+/* ============================================================
+   METRICS CHART
+   ============================================================ */
+.metric-card {
+  padding: 16px;
+  border-radius: 12px;
+  background: hsl(var(--surface-1));
+  border: 1px solid hsl(var(--border-subtle));
+}
+
+.metric-value {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.metric-delta-positive { color: hsl(var(--status-healthy)); }
+.metric-delta-negative { color: hsl(var(--status-unhealthy)); }
