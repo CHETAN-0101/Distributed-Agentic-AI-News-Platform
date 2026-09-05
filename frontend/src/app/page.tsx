@@ -49,17 +49,56 @@ const GLOBE_R = 190; // px, half-width of SVG container
 const ORBIT_R = 145; // orbit distance
 
 function degToRad(d: number) { return (d * Math.PI) / 180; }
-function nodeXY(angle: number) {
-  const r = degToRad(angle);
-  // project onto an ellipse so it looks 3D-ish
-  return {
-    x: GLOBE_R + ORBIT_R * Math.cos(r),
-    y: GLOBE_R + ORBIT_R * 0.38 * Math.sin(r),
-  };
-}
 
 function GlobeViz() {
   const [active, setActive] = useState<string | null>(null);
+  const [time, setTime] = useState(0);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    let start: number | null = null;
+    const loop = (now: number) => {
+      if (start === null) start = now;
+      const elapsed = (now - start) / 1000;
+      setTime(elapsed);
+      rafRef.current = requestAnimationFrame(loop);
+    };
+    rafRef.current = requestAnimationFrame(loop);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  // Compute animated positions for all nodes
+  const nodesWithPos = AGENT_NODES.map((n, idx) => {
+    // Slow smooth orbit: 9 deg/second (full revolution every 40s)
+    const currentAngle = (n.angle + time * 9) % 360;
+    const rad = degToRad(currentAngle);
+    // 3D perspective projection onto tilted orbital plane
+    const x = GLOBE_R + ORBIT_R * Math.cos(rad);
+    // Vertical bobbing superimposed on elliptic orbit
+    const bob = Math.sin(time * 2 + idx * 1.1) * 3;
+    const y = GLOBE_R + ORBIT_R * 0.38 * Math.sin(rad) + bob;
+    // Depth: sin(rad) ranges from -1 (top/back) to +1 (bottom/front)
+    const depth = (Math.sin(rad) + 1) / 2; // 0 = back, 1 = front
+    const scale = 0.88 + depth * 0.24; // 0.88 back, 1.12 front
+    const opacity = 0.65 + depth * 0.35; // dimmer in back
+    const zIndex = Math.round(10 + depth * 20);
+
+    return {
+      ...n,
+      x,
+      y,
+      scale,
+      opacity,
+      zIndex,
+      depth,
+    };
+  });
+
+  const globePulse = 1 + 0.05 * Math.sin(time * 1.8);
+  const glowOpacity = 0.32 + 0.12 * Math.sin(time * 1.8);
+  const centerBob = Math.sin(time * 2.2) * 2;
 
   return (
     <div style={{ position: "relative", width: GLOBE_R * 2, height: GLOBE_R * 2, flexShrink: 0 }}>
@@ -75,73 +114,140 @@ function GlobeViz() {
             <stop offset="100%" stopColor="#0a0e1c" stopOpacity="1" />
           </radialGradient>
           <radialGradient id="glow1" cx="50%" cy="30%" r="60%">
-            <stop offset="0%"   stopColor="#6366f1" stopOpacity="0.5" />
+            <stop offset="0%"   stopColor="#6366f1" stopOpacity="0.55" />
             <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
           </radialGradient>
+          <radialGradient id="centerPulse" cx="50%" cy="50%" r="50%">
+            <stop offset="0%"   stopColor="#818cf8" stopOpacity="0.4" />
+            <stop offset="60%"  stopColor="#6366f1" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="#4f46e5" stopOpacity="0" />
+          </radialGradient>
           <filter id="blur4">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="6" />
+            <feGaussianBlur in="SourceGraphic" stdDeviation="8" />
+          </filter>
+          <filter id="blurRing">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="2" />
           </filter>
         </defs>
 
-        {/* Orbit ellipse */}
-        <ellipse cx={GLOBE_R} cy={GLOBE_R} rx={ORBIT_R} ry={ORBIT_R * 0.38}
-          fill="none" stroke="rgba(99,102,241,0.22)" strokeWidth="1" />
+        {/* Ambient background aura */}
+        <circle cx={GLOBE_R} cy={GLOBE_R} r={110 * globePulse} fill="url(#centerPulse)" />
 
-        {/* Connector lines */}
-        {AGENT_NODES.map(n => {
-          const { x, y } = nodeXY(n.angle);
+        {/* Orbit ellipse (outer glow) */}
+        <ellipse
+          cx={GLOBE_R}
+          cy={GLOBE_R}
+          rx={ORBIT_R}
+          ry={ORBIT_R * 0.38}
+          fill="none"
+          stroke="rgba(99,102,241,0.4)"
+          strokeWidth="2"
+          filter="url(#blurRing)"
+        />
+        {/* Orbit ellipse with animated dash */}
+        <ellipse
+          cx={GLOBE_R}
+          cy={GLOBE_R}
+          rx={ORBIT_R}
+          ry={ORBIT_R * 0.38}
+          fill="none"
+          stroke="rgba(129,140,248,0.3)"
+          strokeWidth="1.2"
+          strokeDasharray="6 4"
+          strokeDashoffset={-time * 12}
+        />
+
+        {/* Connector lines from center to nodes */}
+        {nodesWithPos.map((n, idx) => {
           const isA = active === n.id;
+          const rayPulse = 0.25 + 0.2 * Math.sin(time * 2.5 + idx * 0.8);
           return (
-            <line key={n.id}
-              x1={GLOBE_R} y1={GLOBE_R} x2={x} y2={y}
+            <line
+              key={n.id}
+              x1={GLOBE_R}
+              y1={GLOBE_R}
+              x2={n.x}
+              y2={n.y}
               stroke={n.color}
-              strokeWidth={isA ? 1.5 : 0.8}
-              strokeOpacity={isA ? 0.85 : 0.3}
-              strokeDasharray={isA ? "5 2" : "3 5"}
+              strokeWidth={isA ? 1.8 : 0.9}
+              strokeOpacity={isA ? 0.95 : rayPulse}
+              strokeDasharray={isA ? "5 2" : "4 4"}
+              strokeDashoffset={-time * 18}
             />
           );
         })}
 
         {/* Glow shadow behind globe */}
-        <circle cx={GLOBE_R} cy={GLOBE_R} r={68} fill="#6366f1" filter="url(#blur4)" opacity="0.35" />
+        <circle cx={GLOBE_R} cy={GLOBE_R} r={68 * globePulse} fill="#6366f1" filter="url(#blur4)" opacity={glowOpacity} />
         {/* Globe body */}
         <circle cx={GLOBE_R} cy={GLOBE_R} r={68} fill="url(#g1)" />
         <circle cx={GLOBE_R} cy={GLOBE_R} r={68} fill="url(#glow1)" />
-        <circle cx={GLOBE_R} cy={GLOBE_R} r={68} fill="none" stroke="rgba(99,102,241,0.55)" strokeWidth="1.5" />
+        <circle cx={GLOBE_R} cy={GLOBE_R} r={68} fill="none" stroke="rgba(99,102,241,0.6)" strokeWidth="1.5" />
         {/* Latitude lines */}
-        <ellipse cx={GLOBE_R} cy={GLOBE_R} rx={68} ry={21} fill="none" stroke="rgba(99,102,241,0.18)" strokeWidth="0.8" />
-        <ellipse cx={GLOBE_R} cy={GLOBE_R - 18} rx={58} ry={15} fill="none" stroke="rgba(99,102,241,0.12)" strokeWidth="0.6" />
-        <ellipse cx={GLOBE_R} cy={GLOBE_R + 18} rx={58} ry={15} fill="none" stroke="rgba(99,102,241,0.12)" strokeWidth="0.6" />
+        <ellipse cx={GLOBE_R} cy={GLOBE_R} rx={68} ry={21} fill="none" stroke="rgba(99,102,241,0.22)" strokeWidth="0.8" />
+        <ellipse cx={GLOBE_R} cy={GLOBE_R - 18} rx={58} ry={15} fill="none" stroke="rgba(99,102,241,0.16)" strokeWidth="0.6" />
+        <ellipse cx={GLOBE_R} cy={GLOBE_R + 18} rx={58} ry={15} fill="none" stroke="rgba(99,102,241,0.16)" strokeWidth="0.6" />
         {/* Vertical line */}
-        <line x1={GLOBE_R} y1={GLOBE_R - 68} x2={GLOBE_R} y2={GLOBE_R + 68}
-          stroke="rgba(99,102,241,0.18)" strokeWidth="0.8" />
+        <line
+          x1={GLOBE_R}
+          y1={GLOBE_R - 68}
+          x2={GLOBE_R}
+          y2={GLOBE_R + 68}
+          stroke="rgba(99,102,241,0.22)"
+          strokeWidth="0.8"
+        />
       </svg>
 
       {/* Globe center label */}
-      <div style={{
-        position: "absolute",
-        left: GLOBE_R, top: GLOBE_R,
-        transform: "translate(-50%,-50%)",
-        display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-        zIndex: 10, pointerEvents: "none",
-      }}>
-        <div style={{
-          width: 40, height: 40,
-          borderRadius: 10,
-          background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontWeight: 900, fontSize: 18, color: "#fff",
-          boxShadow: "0 4px 20px rgba(99,102,241,0.5)",
-        }}>A</div>
-        <span style={{ color: "#fff", fontWeight: 700, fontSize: 12, textShadow: "0 2px 8px rgba(0,0,0,0.8)" }}>
+      <div
+        style={{
+          position: "absolute",
+          left: GLOBE_R,
+          top: GLOBE_R + centerBob,
+          transform: "translate(-50%,-50%)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 4,
+          zIndex: 25,
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 12,
+            background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: 900,
+            fontSize: 19,
+            color: "#fff",
+            boxShadow: `0 4px 24px rgba(99,102,241,${0.5 + 0.2 * Math.sin(time * 2)})`,
+            transition: "box-shadow 0.2s",
+          }}
+        >
+          A
+        </div>
+        <span
+          style={{
+            color: "#fff",
+            fontWeight: 700,
+            fontSize: 12,
+            letterSpacing: "0.02em",
+            textShadow: "0 2px 10px rgba(0,0,0,0.9)",
+          }}
+        >
           AgentOS
         </span>
       </div>
 
       {/* Agent node buttons */}
-      {AGENT_NODES.map(n => {
-        const { x, y } = nodeXY(n.angle);
+      {nodesWithPos.map((n) => {
         const isA = active === n.id;
+        const currentScale = isA ? n.scale * 1.22 : n.scale;
         return (
           <button
             key={n.id}
@@ -149,28 +255,63 @@ function GlobeViz() {
             onMouseLeave={() => setActive(null)}
             style={{
               position: "absolute",
-              left: x, top: y,
-              transform: "translate(-50%,-50%)",
-              display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-              cursor: "default", background: "none", border: "none", padding: 0,
-              zIndex: 20,
+              left: n.x,
+              top: n.y,
+              transform: `translate(-50%,-50%) scale(${currentScale})`,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 3,
+              cursor: "pointer",
+              background: "none",
+              border: "none",
+              padding: 0,
+              zIndex: isA ? 50 : n.zIndex,
+              opacity: isA ? 1 : n.opacity,
+              transition: "transform 0.15s ease-out, opacity 0.15s",
             }}
           >
-            <div style={{
-              width: 38, height: 38, borderRadius: 10,
-              background: `${n.color}1a`,
-              border: `1.5px solid ${n.color}${isA ? "99" : "44"}`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 18,
-              transform: isA ? "scale(1.18)" : "scale(1)",
-              boxShadow: isA ? `0 0 18px ${n.color}55` : "none",
-              transition: "all 0.18s",
-            }}>{n.icon}</div>
-            <div style={{ textAlign: "center", lineHeight: 1.2 }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: "#d1d5db", textShadow: "0 1px 6px rgba(0,0,0,0.9)", whiteSpace: "nowrap" }}>
+            <div
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                background: `rgba(15,23,42,0.85)`,
+                border: `1.5px solid ${n.color}${isA ? "cc" : "55"}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 18,
+                boxShadow: isA
+                  ? `0 0 22px ${n.color}88, inset 0 0 10px ${n.color}33`
+                  : `0 2px 8px rgba(0,0,0,0.6)`,
+                backdropFilter: "blur(6px)",
+                transition: "all 0.18s",
+              }}
+            >
+              {n.icon}
+            </div>
+            <div style={{ textAlign: "center", lineHeight: 1.15 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: isA ? "#ffffff" : "#e2e8f0",
+                  textShadow: "0 1px 6px rgba(0,0,0,0.95)",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {n.label}
               </div>
-              <div style={{ fontSize: 9, color: "#6b7280", textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>Agent</div>
+              <div
+                style={{
+                  fontSize: 9,
+                  color: isA ? n.color : "#94a3b8",
+                  textShadow: "0 1px 4px rgba(0,0,0,0.95)",
+                }}
+              >
+                Agent
+              </div>
             </div>
           </button>
         );
