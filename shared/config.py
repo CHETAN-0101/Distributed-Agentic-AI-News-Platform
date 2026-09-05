@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     environment: Literal["development", "staging", "production"] = "development"
     log_level: str = "INFO"
-    secret_key: str = Field(default="change-me", min_length=16)
+    secret_key: str = Field(default="change-me-in-production-agentos-secret-key", min_length=16)
     tenant_default: str = "default"
 
     # -------------------------------------------------------------------------

@@ -17,8 +17,14 @@ from uuid import uuid4
 
 import aio_pika
 import aio_pika.abc
-from opentelemetry import trace
-from opentelemetry.propagate import inject
+
+try:
+    from opentelemetry import trace
+    from opentelemetry.propagate import inject
+except ImportError:
+    trace = None  # type: ignore[assignment]
+    def inject(carrier: Any) -> None:  # type: ignore[misc]
+        pass
 
 from shared.config import settings
 from shared.logging import get_logger

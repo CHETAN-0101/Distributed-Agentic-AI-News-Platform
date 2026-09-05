@@ -16,7 +16,12 @@ from typing import Any, Awaitable, Callable, Optional
 
 import aio_pika
 import aio_pika.abc
-from opentelemetry.propagate import extract
+
+try:
+    from opentelemetry.propagate import extract
+except ImportError:
+    def extract(carrier: Any) -> Any:  # type: ignore[misc]
+        return None
 
 from shared.config import settings
 from shared.logging import get_logger

@@ -85,3 +85,32 @@ class IdempotencyStore:
             raise RuntimeError("IdempotencyStore not connected")
         key = f"{self._prefix}{event_id}"
         await self._client.delete(key)
+
+
+class InMemoryIdempotencyStore:
+    """In-memory idempotency store for testing and development."""
+
+    def __init__(self) -> None:
+        self._seen: set[str] = set()
+
+    async def connect(self) -> None:
+        pass
+
+    async def close(self) -> None:
+        self._seen.clear()
+
+    async def check_and_mark(self, event_id: str) -> bool:
+        if event_id in self._seen:
+            return True  # duplicate
+        self._seen.add(event_id)
+        return False  # new
+
+    async def mark_as_seen(self, event_id: str) -> None:
+        self._seen.add(event_id)
+
+    async def is_seen(self, event_id: str) -> bool:
+        return event_id in self._seen
+
+    async def delete(self, event_id: str) -> None:
+        self._seen.discard(event_id)
+
